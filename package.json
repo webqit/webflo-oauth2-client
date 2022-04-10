@@ -10,15 +10,15 @@
     "authentication",
     "authorization"
   ],
-  "homepage": "https://webqit.dev/tooling/oauth2-node-client",
+  "homepage": "https://webqit.dev/tooling/webflo-oauth2-client",
   "version": "0.0.2",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/webqit/oauth2-node-client.git"
+    "url": "git+https://github.com/webqit/webflo-oauth2-client.git"
   },
   "bugs": {
-    "url": "https://github.com/webqit/oauth2-node-client/issues"
+    "url": "https://github.com/webqit/webflo-oauth2-client/issues"
   },
   "type": "module",
   "main": "src/index.js",
@@ -52,9 +52,9 @@
     "config": {
       "patreonUsername": "ox_harris",
       "githubUsername": "webqit",
-      "githubRepository": "oauth2-node-client",
-      "githubSlug": "webqit/oauth2-node-client",
-      "npmPackageName": "@webqit/oauth2-node-client"
+      "githubRepository": "webflo-oauth2-client",
+      "githubSlug": "webqit/webflo-oauth2-client",
+      "npmPackageName": "@webqit/webflo-oauth2-client"
     }
   }
 }
