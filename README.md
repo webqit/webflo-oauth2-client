@@ -24,15 +24,15 @@ const oauth2Client = navigationEvent => new WebfloOAuth2Client(navigationEvent, 
     clientId: process.env.OAUTH2_CLIENT_ID,
     clientSecret: process.env.OAUTH2_CLIENT_SECRET,
     endpoints: {
-        baseUrl: process.env.OAUTH2_SERVER_BASE_URL, //e.g: https://example.us.auth0.com
-        signIn: process.env.OAUTH2_SERVER_SIGN_IN_URL, //e.g: /authorize
-        token: process.env.OAUTH2_SERVER_TOKEN_URL, //e.g: /oauth/token
-        signOut: process.env.OAUTH2_SERVER_SIGN_OUT_URL, //e.g: /v2/logout
+        baseUrl: process.env.OAUTH2_ENDPOINT_HOST, //e.g: https://example.us.auth0.com
+        signIn: process.env.OAUTH2_SIGNIN_ENDPOINT, //e.g: /authorize
+        token: process.env.OAUTH2_TOKEN_ENDPOINT, //e.g: /oauth/token
+        signOut: process.env.OAUTH2_SIGNOUT_ENDPOINT, //e.g: /v2/logout
     },
     callbacks: {
-        baseUrl: process.env.OAUTH2_APP_BASE_URL, //e.g: http://localhost:3000
-        signedIn: process.env.OAUTH2_APP_SIGNED_IN_URL, //e.g: /signed-in
-        signedOut: process.env.OAUTH2_APP_SIGNED_OUT_URL, //e.g: /signed-out
+        baseUrl: process.env.OAUTH2_CALLBACK_HOST, //e.g: http://localhost:3000
+        signedIn: process.env.OAUTH2_SIGNIN_CALLBACK, //e.g: /signed-in
+        signedOut: process.env.OAUTH2_SIGNOUT_CALLBACK, //e.g: /signed-out
     },
     // Optional params and their defaults
     cookieValidity: 60 * 60 * 24 * 30,
@@ -40,16 +40,34 @@ const oauth2Client = navigationEvent => new WebfloOAuth2Client(navigationEvent, 
 });
 ```
 
-```js
-export default function(event, app, next) {
-    return oauth2Client(event).signIn(next)
-};
-```
+Perform "signing" at any route; protect sub (next) routes:
 
 ```js
 export default function(event, app, next) {
-    if (oauth2Client(event).isSignedIn()) {
-        return oauth2Client(event).signOut();
+    let auth2 = oauth2Client(event);
+    return auth2.signIn(next);
+};
+```
+
+Perform "token exchange" at the process.env.OAUTH2_SIGNIN_CALLBACK route:
+
+```js
+export default function(event, app, next) {
+    let auth2 = oauth2Client(event);
+    if (auth2.isSigningIn()) {
+        return auth2.handleToken();
+    }
+    return next();
+};
+```
+
+Perform "signout" at any route:
+
+```js
+export default function(event, app, next) {
+    let auth2 = oauth2Client(event);
+    if (auth2.isSignedIn()) {
+        return auth2.signOut();
     }
     return next();
 };

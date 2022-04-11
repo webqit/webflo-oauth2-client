@@ -20,12 +20,12 @@ export default class WebfloOAuth2Client {
      *      clientId,
      *      clientSecret,
      *      endpoints,
-     *          baseURL,
+     *          baseUrl,
      *          signIn,
      *          token,
      *          signOut,
      *      callbacks
-     *          baseURL,
+     *          baseUrl,
      *          signedIn,
      *          signedOut
      * '
