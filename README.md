@@ -21,18 +21,18 @@ import WebfloOAuth2Client from '@webqit/webflo-oauth2-client';
 ```js
 const oauth2Client = navigationEvent => new WebfloOAuth2Client(navigationEvent, {
     // Required params
-    clientId: process.env.CLIENT_ID,
-    clientSecret: process.env.CLIENT_SECRET,
+    clientId: process.env.OAUTH2_CLIENT_ID,
+    clientSecret: process.env.OAUTH2_CLIENT_SECRET,
     endpoints: {
-        baseURL: process.env.SERVER_BASE_URL, //e.g: 
-        signIn: process.env.SERVER_SIGN_IN_URL, //e.g: 
-        token: process.env.SERVER_TOKEN_URL, //e.g: 
-        signOut: process.env.SERVER_SIGN_OUT_URL, //e.g: 
+        baseUrl: process.env.OAUTH2_SERVER_BASE_URL, //e.g: https://example.us.auth0.com
+        signIn: process.env.OAUTH2_SERVER_SIGN_IN_URL, //e.g: /authorize
+        token: process.env.OAUTH2_SERVER_TOKEN_URL, //e.g: /oauth/token
+        signOut: process.env.OAUTH2_SERVER_SIGN_OUT_URL, //e.g: /v2/logout
     },
     callbacks: {
-        baseURL: process.env.APP_BASE_URL, //e.g: http://localhost:3000
-        signedIn: process.env.APP_SIGNED_IN_URL, //e.g: /signed-in
-        signedOut: process.env.APP_SIGNED_OUT_URL, //e.g: /signed-out
+        baseUrl: process.env.OAUTH2_APP_BASE_URL, //e.g: http://localhost:3000
+        signedIn: process.env.OAUTH2_APP_SIGNED_IN_URL, //e.g: /signed-in
+        signedOut: process.env.OAUTH2_APP_SIGNED_OUT_URL, //e.g: /signed-out
     },
     // Optional params and their defaults
     cookieValidity: 60 * 60 * 24 * 30,
