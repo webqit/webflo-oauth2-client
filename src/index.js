@@ -33,7 +33,7 @@ export default class WebfloOAuth2Client {
      */
     constructor(navigationEvent, params) {
         this.navigationEvent = navigationEvent;
-        this.session = navigationEvent.createSession(params.cookieName || '$webflo_oauth', {duration: params.cookieValidity || 60 * 60 * 24 * 30}).get();
+        this.session = navigationEvent.sessionFactory(params.cookieName || '$webflo_oauth', {duration: params.cookieValidity || 60 * 60 * 24 * 30}).get();
         this.params = params;
         this.endpoints = {
             signInUrl: params.endpoints.baseUrl + params.endpoints.signIn,
@@ -119,10 +119,22 @@ export default class WebfloOAuth2Client {
             + '?response_type=code'
             + '&client_id=' + this.params.clientId
             + '&redirect_uri=' + this.callbacks.signedInUrl
-            + (scopes.length ? '&scope=' + _arrFrom(scopes).join('%20') : '') // "offline_access" - to include refresh_token
+            + (scopes.length ? '&scope=' + _arrFrom(scopes).join('%20') : '') // "openid" to include id_token, "offline_access" - to include refresh_token
             + (audience ? '&audience=' + audience : '')
             + (oauthStateCode ? '&state=' + oauthStateCode : '');
-        return new this.navigationEvent.Response(null, {status: 302, headers: {Location: rdr}});
+        return new this.navigationEvent.Response(null, {status: 302, headers: {location: rdr}});
+    }
+    
+    /**
+     * Checks if the current session is being authenticated,
+     * but pending token handling.
+     * 
+     * @return object
+     */
+    isSigningIn() {
+        return this.session.oauthStateCode 
+        && this.session.oauthStateCode
+        && this.navigationEvent.url.query.code;
     }
 
     /**
@@ -156,14 +168,15 @@ export default class WebfloOAuth2Client {
         try {
             response = await this.navigationEvent.globals.fetch(this.endpoints.tokenUrl, {
                 method: 'POST',
-                body: {
-                    grant_type: 'authorization_code', // or refresh_token
+                body: JSON.stringify({
+                    grant_type: 'authorization_code',           // or refresh_token
                     client_id: this.params.clientId,
                     client_secret: this.params.clientSecret,    // not needed for type refresh_token
                     code: url.query.code,                       // not needed for type refresh_token
-                    redirect_uri: this.callbacks.signedInUrl,      // not needed for type refresh_token
+                    redirect_uri: this.callbacks.signedInUrl,   // not needed for type refresh_token
                                                                 // refresh_token: the body.refresh_token in previous request
-                },
+                }),
+                headers: {'Content-Type': 'application/json'},
             }).then(res => res.ok ? res.json() : Promise.reject(res.statusText));
         } catch(e) {
             return new this.navigationEvent.Response(null, {status: 401, statusText: 'Unauthorized - Internal network error - ' + e + '.'});
@@ -186,7 +199,7 @@ export default class WebfloOAuth2Client {
             this.session.oauth.identity = (response.id_token || {}).payload;
         }
         // Redirect back to initiator URL
-        return new this.navigationEvent.Response(null, {status: 302, headers: {Location: oauthStateUrl}});
+        return new this.navigationEvent.Response(null, {status: 302, headers: {location: oauthStateUrl}});
 
     }
             
@@ -203,6 +216,6 @@ export default class WebfloOAuth2Client {
         let rdr = this.endpoints.signOutUrl
         + '?client_id=' + this.params.clientId
         + '&returnTo=' + this.callbacks.signedOutUrl;
-        return new this.navigationEvent.Response(null, {status: 302, headers: {Location: rdr}});
+        return new this.navigationEvent.Response(null, {status: 302, headers: {location: rdr}});
     }
 }
