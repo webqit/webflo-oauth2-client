@@ -35,17 +35,22 @@ export default class WebfloOAuth2Client {
         this.navigationEvent = navigationEvent;
         this.session = navigationEvent.sessionFactory(params.cookieName || '$webflo_oauth', {duration: params.cookieValidity || 60 * 60 * 24 * 30}).get();
         this.params = params;
+        // UTILs API
+        const qualifyUrl = (base, uri) => uri.startsWith('https://') || uri.startsWith('http://') ? uri : `${base}${uri.startsWith('/') ? '' : '/'}${uri}`;
+        this.callbacks = {
+            qualify: callbackUri => qualifyUrl(params.callbacks.baseUrl, callbackUri),
+            signedInUrl: params.callbacks.baseUrl + params.callbacks.signedIn,
+            signedOutUrl: params.callbacks.baseUrl + params.callbacks.signedOut,
+        };
         this.endpoints = {
+            qualify: endpointUri => qualifyUrl(params.endpoints.baseUrl, endpointUri),
             signInUrl: params.endpoints.baseUrl + params.endpoints.signIn,
             tokenUrl: params.endpoints.baseUrl + params.endpoints.token,
             signOutUrl: params.endpoints.baseUrl + params.endpoints.signOut,
         };
-        this.callbacks = {
-            signedInUrl: params.callbacks.baseUrl + params.callbacks.signedIn,
-            signedOutUrl: params.callbacks.baseUrl + params.callbacks.signedOut,
-        };
+        this.jwt = Jsonwebtoken;
     }
-    
+
     /**
      * Checks if the current session is authenticated,
      * and otpionally, with the specified scopes.
@@ -166,30 +171,19 @@ export default class WebfloOAuth2Client {
 
         let response;
         try {
-            response = await this.navigationEvent.globals.fetch(this.endpoints.tokenUrl, {
-                method: 'POST',
-                body: JSON.stringify({
-                    grant_type: 'authorization_code',           // or refresh_token
-                    client_id: this.params.clientId,
-                    client_secret: this.params.clientSecret,    // not needed for type refresh_token
-                    code: url.query.code,                       // not needed for type refresh_token
-                    redirect_uri: this.callbacks.signedInUrl,   // not needed for type refresh_token
-                                                                // refresh_token: the body.refresh_token in previous request
-                }),
-                headers: {'Content-Type': 'application/json'},
-            }).then(res => res.ok ? res.json() : Promise.reject(res.statusText));
+            response = await this.callEndpoint('POST', this.params.endpoints.token, null, {
+                grant_type: 'authorization_code',
+                code: url.query.code,                       // not needed for type refresh_token
+                redirect_uri: this.callbacks.signedInUrl,   // not needed for type refresh_token
+                                                            // refresh_token: the body.refresh_token in previous request
+            });
         } catch(e) {
             return new this.navigationEvent.Response(null, {status: 401, statusText: 'Unauthorized - Internal network error - ' + e + '.'});
         }
 
         this.session.oauth = { ...response };
         if (response.id_token) {
-            response.id_token = Jsonwebtoken.decode(response.id_token, {complete: true});
-            // Verify signing algorithm - "data.id_token.header.alg" - HS256, RS256
-            // Verify token audience claims - "data.id_token.payload.aud" - roughly this.params.clientId
-            // Verify permissions (scopes) - "data.id_token.payload.scopes" - from the initiator request
-            // Verify issuer claims - "data.id_token.payload.iss" - usually the domain part in this.endpoints.signInUrl
-            // Verify expiration - "data.id_token.payload.exp" - must be after the current date/time
+            response.id_token = this.jwtVerify(response.id_token);
             // Starts a signIn session
             delete this.session.oauth.id_token;
         }
@@ -218,4 +212,83 @@ export default class WebfloOAuth2Client {
         + '&returnTo=' + this.callbacks.signedOutUrl;
         return new this.navigationEvent.Response(null, {status: 302, headers: {location: rdr}});
     }
+
+    /**
+     * -------------
+     * UTILs
+     * -------------
+     */
+
+    /**
+     * Calls an endpoint.
+     *
+     * @param String                token
+     * @param Object|Function       verifier
+     * 
+     * @return Object|Undefined
+     */
+    jwtVerify(token, verifier = null) {
+        return this.jwt.decode(token, {
+            complete: true,
+            // Verify issuer claims - "data.id_token.payload.iss" - usually this.endpoints.baseUrl
+            issuer: this.params.endpoints.baseUrl,
+            // Verify token audience claims - "data.id_token.payload.aud" - usually this.params.clientId
+            audience: this.params.clientId,
+            // Verify signing algorithm - "data.id_token.header.alg" - HS256, RS256
+            algorithms: ['RS256', 'HS256'],
+            // Verify expiration - (auto) "data.id_token.payload.exp" - must be after the current date/time
+            // Verify permissions (scopes) - "data.id_token.payload.scopes" - from the initiator request
+        });
+    }
+
+    /**
+     * Calls an endpoint.
+     *
+     * @param String|Object                token
+     * @param String|Object|Function       secretOrPublicKey
+     * @param Object                       options
+     * 
+     * @return Object|Undefined
+     */
+    jwtSign(data, secretOrPublicKey, options = {}) {
+        return this.jwt.verify(token, {
+            complete: true,
+            // Verify issuer claims - "data.id_token.payload.iss" - usually this.endpoints.baseUrl
+            issuer: this.params.endpoints.baseUrl,
+            // Verify token audience claims - "data.id_token.payload.aud" - usually this.params.clientId
+            audience: this.params.clientId,
+            // Verify signing algorithm - "data.id_token.header.alg" - HS256, RS256
+            //algorithms: ['RS256', 'HS256'],
+            // Verify expiration - (auto) "data.id_token.payload.exp" - must be after the current date/time
+            // Verify permissions (scopes) - "data.id_token.payload.scopes" - from the initiator request
+        });
+    }
+
+    /**
+     * Calls an endpoint.
+     *
+     * @param String      method
+     * @param String      endpoint
+     * @param String      bearerToken
+     * @param Object      data
+     * 
+     * @return Object
+     */
+
+    callEndpoint(method, endpoint, bearerToken = null, data = {}) {
+        let requestBody = bearerToken ? data : {
+            client_id: this.params.clientId,
+            client_secret: this.params.clientSecret,    // not needed for data.grant_type: refresh_token
+            ...data,
+        };
+        return this.navigationEvent.globals.fetch(this.endpoints.qualify(endpoint), {
+            method,
+            ...(Object.keys(requestBody).length ? {body: JSON.stringify(requestBody)} : {}),
+            headers: {
+                'Content-Type': 'application/json',
+                ...(bearerToken ? {authorization: `Bearer ${bearerToken}`} : {})
+            },
+        }).then(res => res.ok ? res.json() : Promise.reject(res.statusText));
+    }
+
 }
