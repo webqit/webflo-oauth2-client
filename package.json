@@ -11,7 +11,7 @@
     "authorization"
   ],
   "homepage": "https://webqit.dev/tooling/webflo-oauth2-client",
-  "version": "0.0.6",
+  "version": "0.0.7-0",
   "license": "MIT",
   "repository": {
     "type": "git",
