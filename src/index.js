@@ -6,6 +6,7 @@ import Jsonwebtoken from 'jsonwebtoken';
 import _intersect from '@webqit/util/arr/intersect.js';
 import _arrFrom from '@webqit/util/arr/from.js';
 import _promise from '@webqit/util/js/promise.js';
+import JwksClient from 'jwks-rsa';
 
 /**
  * OAuth util class
@@ -33,7 +34,7 @@ export default class WebfloOAuth2Client {
      */
     constructor(navigationEvent, params) {
         this.navigationEvent = navigationEvent;
-        this.session = navigationEvent.sessionFactory(params.cookieName || '$webflo_oauth', {duration: params.cookieValidity || 60 * 60 * 24 * 30}).get();
+        this.session = navigationEvent.sessionFactory(params.cookieName || '$webflo_oauth', { duration: params.cookieValidity || 60 * 60 * 24 * 30 }).get();
         this.params = params;
         // UTILs API
         const qualifyUrl = (base, uri) => uri.startsWith('https://') || uri.startsWith('http://') ? uri : `${base}${uri.startsWith('/') ? '' : '/'}${uri}`;
@@ -49,6 +50,16 @@ export default class WebfloOAuth2Client {
             signOutUrl: params.endpoints.baseUrl + params.endpoints.signOut,
         };
         this.jwt = Jsonwebtoken;
+        this.jwksClient = JwksClient({
+            jwksUri: `${params.endpoints.baseUrl}/.well-known/jwks.json`,
+        });
+        this.jwksClientFetch = (header, callback) => {
+            this.jwksClient.getSigningKey(header.kid, (err, key) => {
+                if (err) throw err;
+                var signingKey = key.publicKey || key.rsaPublicKey;
+                callback(null, signingKey);
+            });
+        };
     }
 
     /**
@@ -117,7 +128,7 @@ export default class WebfloOAuth2Client {
     requestToken(scopes = [], audience = null) {
         // Is code auth
         let i = 0, oauthStateCode = '';
-        while(i < 1) {oauthStateCode += Math.random(); i ++;}
+        while(i < 1) { oauthStateCode += Math.random(); i ++; }
         this.session.oauthStateCode = oauthStateCode;
         this.session.oauthStateUrl = this.navigationEvent.url.href;
         let rdr = this.endpoints.signInUrl
@@ -137,9 +148,7 @@ export default class WebfloOAuth2Client {
      * @return object
      */
     isSigningIn() {
-        return this.session.oauthStateCode 
-        && this.session.oauthStateCode
-        && this.navigationEvent.url.query.code;
+        return this.session.oauthStateCode && this.navigationEvent.url.query.code;
     }
 
     /**
@@ -183,7 +192,7 @@ export default class WebfloOAuth2Client {
 
         this.session.oauth = { ...response };
         if (response.id_token) {
-            response.id_token = this.jwtVerify(response.id_token);
+            response.id_token = await this.jwtVerify(response.id_token);
             // Starts a signIn session
             delete this.session.oauth.id_token;
         }
@@ -223,44 +232,47 @@ export default class WebfloOAuth2Client {
      * Calls an endpoint.
      *
      * @param String                token
-     * @param Object|Function       verifier
+     * @param String|Function       secretOrPrivateKey
      * 
      * @return Object|Undefined
      */
-    jwtVerify(token, verifier = null) {
-        return this.jwt.decode(token, {
-            complete: true,
-            // Verify issuer claims - "data.id_token.payload.iss" - usually this.endpoints.baseUrl
-            issuer: this.params.endpoints.baseUrl,
-            // Verify token audience claims - "data.id_token.payload.aud" - usually this.params.clientId
-            audience: this.params.clientId,
-            // Verify signing algorithm - "data.id_token.header.alg" - HS256, RS256
-            algorithms: ['RS256', 'HS256'],
-            // Verify expiration - (auto) "data.id_token.payload.exp" - must be after the current date/time
-            // Verify permissions (scopes) - "data.id_token.payload.scopes" - from the initiator request
+    async jwtVerify(token, secretOrPrivateKey = null) {
+        return this.jwt.decode(token, { complete: true, });
+        return new Promise((resolve, reject) => {
+            this.jwt.verify(token, secretOrPrivateKey || this.jwksClientFetch, {
+                complete: true,
+                // Verify issuer claims - "data.id_token.payload.iss" - usually this.endpoints.baseUrl
+                issuer: this.params.endpoints.baseUrl,
+                // Verify token audience claims - "data.id_token.payload.aud" - usually this.params.clientId
+                audience: this.params.clientId,
+                // Verify signing algorithm - "data.id_token.header.alg" - HS256, RS256
+                algorithms: ['RS256', 'HS256'],
+                // Verify expiration - (auto) "data.id_token.payload.exp" - must be after the current date/time
+                // Verify permissions (scopes) - "data.id_token.payload.scopes" - from the initiator request
+            }, (error, decoded) => error ? reject(error) : resolve(decoded));
         });
     }
 
     /**
      * Calls an endpoint.
      *
-     * @param String|Object                token
-     * @param String|Object|Function       secretOrPublicKey
+     * @param String|Object                data
+     * @param String|Object|Function       secretOrPrivateKey
      * @param Object                       options
      * 
-     * @return Object|Undefined
+     * @return String
      */
-    jwtSign(data, secretOrPublicKey, options = {}) {
-        return this.jwt.verify(token, {
-            complete: true,
-            // Verify issuer claims - "data.id_token.payload.iss" - usually this.endpoints.baseUrl
-            issuer: this.params.endpoints.baseUrl,
-            // Verify token audience claims - "data.id_token.payload.aud" - usually this.params.clientId
-            audience: this.params.clientId,
-            // Verify signing algorithm - "data.id_token.header.alg" - HS256, RS256
-            //algorithms: ['RS256', 'HS256'],
-            // Verify expiration - (auto) "data.id_token.payload.exp" - must be after the current date/time
-            // Verify permissions (scopes) - "data.id_token.payload.scopes" - from the initiator request
+    jwtSign(data, secretOrPrivateKey = null, options = {}) {
+        return new Promise((resolve, reject) => {
+            this.jwt.sign(data, secretOrPrivateKey || this.jwksClientFetch, {
+                // Add issuer claims - usually this.endpoints.baseUrl
+                issuer: this.params.endpoints.baseUrl,
+                // Add token audience claims - usually this.params.clientId
+                audience: this.params.clientId,
+                // Add signing algorithm
+                algorithm: 'RS256',
+                ...options
+            }, (error, decoded) => error ? reject(error) : resolve(decoded));
         });
     }
 
@@ -275,18 +287,18 @@ export default class WebfloOAuth2Client {
      * @return Object
      */
 
-    callEndpoint(method, endpoint, bearerToken = null, data = {}) {
+    callEndpoint(method, endpoint, bearerToken = null, data = null) {
         let requestBody = bearerToken ? data : {
             client_id: this.params.clientId,
             client_secret: this.params.clientSecret,    // not needed for data.grant_type: refresh_token
-            ...data,
+            ...(data || {}),
         };
         return this.navigationEvent.globals.fetch(this.endpoints.qualify(endpoint), {
             method,
-            ...(Object.keys(requestBody).length ? {body: JSON.stringify(requestBody)} : {}),
+            ...(requestBody ? {body: JSON.stringify(requestBody)} : {}),
             headers: {
-                'Content-Type': 'application/json',
-                ...(bearerToken ? {authorization: `Bearer ${bearerToken}`} : {})
+                ...(requestBody ? {'Content-Type': 'application/json'} : {}),
+                ...(bearerToken ? {'Authorization': `Bearer ${bearerToken}`} : {})
             },
         }).then(res => res.ok ? res.json() : Promise.reject(res.statusText));
     }

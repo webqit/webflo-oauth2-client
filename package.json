@@ -28,7 +28,8 @@
   },
   "dependencies": {
     "@webqit/util": "^0.7.0",
-    "jsonwebtoken": "^8.5.1"
+    "jsonwebtoken": "^8.5.1",
+    "jwks-rsa": "^2.0.5"
   },
   "devDependencies": {
     "webpack": "^4.41.6",
