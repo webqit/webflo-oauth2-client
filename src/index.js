@@ -293,7 +293,7 @@ export default class WebfloOAuth2Client {
             client_secret: this.params.clientSecret,    // not needed for data.grant_type: refresh_token
             ...(data || {}),
         };
-        return this.navigationEvent.globals.fetch(this.endpoints.qualify(endpoint), {
+        return this.params.fetch(this.endpoints.qualify(endpoint), {
             method,
             ...(requestBody ? {body: JSON.stringify(requestBody)} : {}),
             headers: {
