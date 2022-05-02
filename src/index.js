@@ -300,7 +300,7 @@ export default class WebfloOAuth2Client {
                 ...(requestBody ? {'Content-Type': 'application/json'} : {}),
                 ...(bearerToken ? {'Authorization': `Bearer ${bearerToken}`} : {})
             },
-        }).then(res => res.ok ? res.json() : Promise.reject(res.statusText));
+        }).then(res => res.ok ? res.json() : Promise.reject(`${res.status} - ${res.statusText}`));
     }
 
 }
