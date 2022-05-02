@@ -172,10 +172,8 @@ export default class WebfloOAuth2Client {
         if (!oauthStateCode || !url.query.code/* token code */) {
             return;
         }
-        delete this.session.oauthStateCode;
-        delete this.session.oauthStateUrl;
         if (url.query.state !== oauthStateCode) {
-            return new this.navigationEvent.Response(null, {status: 401, statusText: 'Unauthorized - Invalid request; state mismatch.'});
+            return new this.navigationEvent.Response(null, { status: 401, statusText: 'Unauthorized - Invalid request; state mismatch.' });
         }
 
         let response;
@@ -186,8 +184,10 @@ export default class WebfloOAuth2Client {
                 redirect_uri: this.callbacks.signedInUrl,   // not needed for type refresh_token
                                                             // refresh_token: the body.refresh_token in previous request
             });
+            delete this.session.oauthStateCode;
+            delete this.session.oauthStateUrl;
         } catch(e) {
-            return new this.navigationEvent.Response(null, {status: 401, statusText: 'Unauthorized - Internal network error - ' + e + '.'});
+            return new this.navigationEvent.Response(null, { status: 401, statusText: 'Unauthorized - Internal network error - ' + e + '.' });
         }
 
         this.session.oauth = { ...response };
