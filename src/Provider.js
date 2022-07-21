@@ -6,7 +6,7 @@ import JwksClient from 'jwks-rsa';
 import Machine from "./Machine.js";
 
 /**
- * Server Object
+ * Provider Class
  */
 export default class Provider extends Machine {
 
@@ -67,17 +67,18 @@ export default class Provider extends Machine {
      * Calls for a token grant.
      *
      * @param String                grantType - "authorization_code"|"refresh_token"|"client_credentials"
-     * @param String                value
+     * @param String                tokenOrAudience
      * @param Object                options
      * 
      * @return Object
      */
-    grant( grantType, value, options = {} ) {
+    grant( grantType, tokenOrAudience, options = {} ) {
+        if ( !this.endpoints.token ) throw new Error( 'No "token" endpoint defined.' );
         const params = { client_id: this.clientId, client_secret: this.clientSecret, grant_type: grantType, ...options, };
         // Properly set the token
-        if ( grantType === 'refresh_token' ) { params.refresh_token = value; }
-        else if ( grantType === 'authorization_code' ) { params.code = value; }
-        else if ( grantType === 'client_credentials' ) { params.audience = value; }
+        if ( grantType === 'refresh_token' ) { params.refresh_token = tokenOrAudience; }
+        else if ( grantType === 'authorization_code' ) { params.code = tokenOrAudience; }
+        else if ( grantType === 'client_credentials' ) { params.audience = tokenOrAudience; }
         else throw new Error( `Grant type "${ grantType }" unknown!` );
         // Go...
         return this.fetch( this.endpoints.token, {
@@ -95,9 +96,11 @@ export default class Provider extends Machine {
      * @return Object
      */
     revoke( token ) {
-        // Go...
-        return this.fetch( `${ this.endpoints.revoke }?token=${ token }`, {
+        if ( !this.endpoints.revoke ) throw new Error( 'No "revoke" endpoint defined.' );
+        return this.fetch( this.endpoints.revoke, {
             method: 'POST',
+            body: JSON.stringify( { token } ),
+            headers: { 'Content-Type': 'application/json', },
         } ).then( res => res.ok ? res.json() : Promise.reject( `${ res.status } - ${ res.statusText }` ) );
     }
 

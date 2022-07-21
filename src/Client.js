@@ -2,12 +2,12 @@
 /**
  * @imports
  */
-import { _from as _arrFrom } from '@webqit/util/arr/index.js';
+import { scopeSplit } from './util.js';
 import Machine from "./Machine.js";
 import Provider from './Provider.js';
 
 /**
- * Client Object
+ * Client Class
  */
 export default class Client extends Machine {
 
@@ -67,56 +67,33 @@ export default class Client extends Machine {
     }
 
     /**
-     * Dynamically creates the URL for obtaining "authorization_code".
+     * Calls provider to authenticate self - specifying an audience.
      * 
-     * @param String    state 
      * @param String    provider 
-     * @param Array     scope 
      * @param String    audience 
      * 
-     * @returns String
+     * @returns Object
      */
-    createSignInUrl( { state, provider, scope = [], audience = null } = {} ) {
+    async signInWithClientCredentials( { provider, audience } = {} ) {
         const providr = this.provider( provider );
-        scope = _arrFrom( scope );
-        const url = providr.endpoints.signIn
-            + '?response_type=code'
-            + '&client_id=' + providr.clientId
-            + '&redirect_uri=' + this.callbacks.signedIn
-            + ( scope.length ? '&scope=' + scope.join( '%20' ) : '' ) // "openid" to include id_token, "offline_access" - to include refresh_token
-            + ( audience ? '&audience=' + audience : '' )
-            + ( state ? '&state=' + state : '' );
-        return url;
-    }
-
-    /**
-     * Dynamically creates the URL for obtaining "authorization_code".
-     * 
-     * @param String    provider 
-     * 
-     * @returns String
-     */
-    createSignOutUrl( { provider } = {} ) {
-        const providr = this.provider( provider );
-        if ( !providr.endpoints.signOut ) return this.callbacks.signedOut;
-        const url = providr.endpoints.signOut
-            + '?client_id=' + providr.clientId
-            + '&returnTo=' + this.callbacks.signedOut;
-        return url;
+        const oauth =  await providr.grant( 'client_credentials', audience );
+        return oauth;
     }
 
     /**
      * Calls provider to exchange a code for token.
      * 
-     * @param String    provider 
-     * @param String    code 
+     * @param String    provider
+     * @param String    code
+     * @param String    pkceVerifier
      * 
      * @returns Object
      */
-    async signInWithAuthorizationCode( { provider, code } = {} ) {
+    async signInWithAuthorizationCode( { provider, code, pkceVerifier = null } = {} ) {
         const providr = this.provider( provider );
         const response = await providr.grant( 'authorization_code', code, {
             redirect_uri: this.callbacks.signedIn,
+            ...( pkceVerifier ? { code_verifier : pkceVerifier } : { }),
         } );
         const oauth = { ...response, provider: providr.name };
         if ( oauth.id_token ) {
@@ -134,7 +111,55 @@ export default class Client extends Machine {
         } else {
             oauth.info = {};
         }
+        if ( oauth.refresh_token ) {
+            // TODO: Store refresh_token and monitore access_token expiration so as to auto-refresh it
+        }
         return oauth;
+    }
+
+    /**
+     * Dynamically creates the URL for obtaining "authorization_code".
+     * 
+     * @param String    state 
+     * @param String    provider 
+     * @param Array     scope 
+     * @param String    audience 
+     * @param Boolean   offline 
+     * @param String    pkceChallenge 
+     * 
+     * @returns String
+     */
+    generateAuthorizationSignInUrl( { state, provider, scope = [], audience = null, offline = false, pkceChallenge = null } = {} ) {
+        const providr = this.provider( provider );
+        const givenScopes = scopeSplit( scope );
+        const incrementalAuth = givenScopes[ 0 ] === '+' ? givenScopes.shift() : false;
+        const url = providr.endpoints.signIn
+            + '?response_type=code'
+            + '&client_id=' + providr.clientId
+            + '&redirect_uri=' + this.callbacks.signedIn
+            + ( givenScopes.length ? '&scope=' + givenScopes.join( '%20' ) : '' ) // "openid" to include id_token, "offline_access" - to include refresh_token
+            + ( audience ? '&audience=' + audience : '' )
+            + ( offline ? '&access_type=offline' : '' )
+            + ( pkceChallenge ? '&code_challenge=' + pkceChallenge + '&code_challenge_method=S256' : '' )
+            + ( incrementalAuth ? '&include_granted_scopes=true' : '' )
+            + ( state ? '&state=' + state : '' );
+        return url;
+    }
+
+    /**
+     * Dynamically creates the URL for obtaining "authorization_code".
+     * 
+     * @param String    provider 
+     * 
+     * @returns String
+     */
+    generateAuthorizationSignOutUrl( { provider } = {} ) {
+        const providr = this.provider( provider );
+        if ( !providr.endpoints.signOut ) return this.callbacks.signedOut;
+        const url = providr.endpoints.signOut
+            + '?client_id=' + providr.clientId
+            + '&returnTo=' + this.callbacks.signedOut;
+        return url;
     }
 
     /**

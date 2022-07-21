@@ -2,15 +2,15 @@
 /**
  * @imports
  */
-import Auth from "./Auth.js";
-import Provider from "./Provider.js";
+import ConsentFlow from "./ConsentFlow.js";
 import Client from "./Client.js";
+import Provider from "./Provider.js";
 
 /**
  * @exports
  */
 export {
-    Auth,
-    Provider,
+    ConsentFlow,
     Client,
+    Provider,
 }

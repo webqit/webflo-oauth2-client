@@ -18,13 +18,13 @@ npm i @webqit/webflo-oauth2-client
 ## Usage
 
 ```js
-import { Auth as WebfloOAuth2Client } from '@webqit/webflo-oauth2-client';
+import { ConsentFlow } from '@webqit/webflo-oauth2-client';
 ```
 
 ### Initialization
 
 ```js
-const oauth2Client = ( httpEvent, fetch ) => {
+const createConsentFlow = ( httpEvent, fetch ) => {
 
     // Client app config
     const client = {
@@ -78,7 +78,7 @@ const oauth2Client = ( httpEvent, fetch ) => {
     };
 
     // Auth instance
-    return new WebfloOAuth2Client( httpEvent, {
+    return new ConsentFlow( httpEvent, {
         client, providers: { google/* as default provider */, auth0 },
     }, fetch );
 
@@ -91,7 +91,7 @@ At the application's root handler, you'd initialize oauth2 client into the `cont
 
 ```js
 export default function( httpEvent, context, next, fetch ) {
-    context.oauth2 = oauth2Client( httpEvent, fetch );
+    context.oauth2 = createConsentFlow( httpEvent, fetch );
     if ( next.pathname ) return next( context );
     return { titleBar: 'Home' };
 }
