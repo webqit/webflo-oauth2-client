@@ -220,7 +220,7 @@ export default function( httpEvent, context, next ) {
 
 ## Full Documentation
 
-Fullm documentation, including integrating other providers, coming soon.
+Full documentation, including integrating other providers, coming soon.
 
 ## Issues
 
